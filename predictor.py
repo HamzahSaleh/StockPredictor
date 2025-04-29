@@ -1,112 +1,79 @@
-import sys
-import datetime
+import os
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from sklearn.linear_model import LinearRegression
-import os
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+
+def make_sequences(data, win=60):
+    X, y = [], []
+    for i in range(len(data) - win):
+        X.append(data[i : i+win])
+        y.append(data[i+win, 0])
+    return np.array(X), np.array(y)
+
 def main():
-   
-    #input like this python path stock_ticker start_date end_date
-    #ex: 
-    #python predict_next_day.py AAPL 2015-01-01 2025-03-30
-    # if no arguments this is the default 
-    # ticker_symbol="BRK-B", start_date="2015-01-01", end_date="2025-03-30".
-   
-    
-    # ----- 1. Parse args or set defaults -----
-    if len(sys.argv) > 1:
-        ticker_symbol = sys.argv[1]
-    else:
-        ticker_symbol = "BRK-B"
-    
-    if len(sys.argv) > 2:
-        start_date = sys.argv[2]
-    else:
-        start_date = "2015-01-01"
-    
-    if len(sys.argv) > 3:
-        end_date = sys.argv[3]
-    else:
-        # You could set this dusing system time
-        # end_date = datetime.date.today().strftime("%Y-%m-%d")
-        end_date = "2025-03-30"
-    
+    # ←—— Set your parameters here! ——————————————————————
+    ticker_symbol = "AAPL"           # e.g. "BRK-B" or "MSFT"
+    start_date    = "2015-01-01"     # format YYYY-MM-DD
+    end_date      = "2025-03-30"     # format YYYY-MM-DD
+    # ————————————————————————————————————————————————————
+
     print(f"Ticker: {ticker_symbol}, Start: {start_date}, End: {end_date}")
-    
-    # pull the data
-    # maybe add a fail safe for weekends right now it will just predict the next day with wrong date
+
+    # 1) Fetch historical data
     df = yf.Ticker(ticker_symbol).history(start=start_date, end=end_date)
     if df.empty:
-        print("No data returned. Check ticker and date range.")
-        return
+        raise RuntimeError("No data returned. Check ticker & date range.")
 
-    # Move 'Date' from index to a column
     df.reset_index(inplace=True)
     df.sort_values("Date", inplace=True)
-    
-    # create columns for the next day for each of the features
-    df["Open_Tomorrow"] = df["Open"].shift(-1)
-    df["Close_Tomorrow"] = df["Close"].shift(-1)
-    
-    train_df = df.dropna().copy()    # We drop the last row because it has no 'tomorrow' values.
-    today_row = df.iloc[-1]
-    
-    # If the last row is from end_date (e.g., "2025-03-30"), we expect tomorrow to be "2025-03-31"
-    # This row will have Open, High, Low, Close, Volume for 3/30, but no tomorrow columns.
-    
- #training 
-    features = ["Open", "High", "Low", "Close", "Volume"]
-    
-    # Targets
-    X = train_df[features]
-    y_open = train_df["Open_Tomorrow"]
-    y_close = train_df["Close_Tomorrow"]
-    
-    open_model = LinearRegression()
-    close_model = LinearRegression()
-    
-    open_model.fit(X, y_open)
-    close_model.fit(X, y_close)
-    
-    # make today a single row dataframe to predict the next day
-    today_features = pd.DataFrame([[
-        today_row["Open"],
-        today_row["High"],
-        today_row["Low"],
-        today_row["Close"],
-        today_row["Volume"]
-    ]], columns=features)
-    
-    predicted_open = open_model.predict(today_features)[0]
-    predicted_close = close_model.predict(today_features)[0]
-    
-    # print result with tomorrow's date is last_row_date + 1 day
-    last_date = today_row["Date"]
-    if isinstance(last_date, pd.Timestamp):
-        tomorrow_date = last_date + pd.Timedelta(days=1)
-    else:
-        # if pd.Timestamp is not used, convert to datetime
-        tomorrow_date = pd.to_datetime(last_date) + pd.Timedelta(days=1)
-    
-    # Print
-    print("\n-----------------------------------")
-    print(f"Predicted for {ticker_symbol} on {tomorrow_date.date()}:")
-    print(f"  Open : ${predicted_open:.2f}")
-    print(f"  Close: ${predicted_close:.2f}")
-    print("-----------------------------------\n")
-    
-    # save to csv to be used on user side 
-    results_df = pd.DataFrame({
-        "Ticker": [ticker_symbol],
-        "Date": [tomorrow_date.date()],
-        "Predicted_Open": [predicted_open],
-        "Predicted_Close": [predicted_close]
+
+    # 2) Prepare 'Close' prices and scale
+    close_prices = df[['Close']].values
+    scaler = MinMaxScaler((0,1))
+    scaled_close = scaler.fit_transform(close_prices)
+
+    # 3) Build sequences (60-day window)
+    WINDOW = 60
+    X, y = make_sequences(scaled_close, win=WINDOW)
+    split = int(len(X) * 0.8)
+    X_train, X_test = X[:split], X[split:]
+    y_train, y_test = y[:split], y[split:]
+
+    # 4) Define & train LSTM
+    model = Sequential([
+        LSTM(64, return_sequences=True, input_shape=(WINDOW, 1)),
+        Dropout(0.2),
+        LSTM(32),
+        Dropout(0.2),
+        Dense(1),
+    ])
+    model.compile(optimizer='adam', loss='mse')
+    model.fit(X_train, y_train, epochs=25, batch_size=32,
+              validation_split=0.1, verbose=1)
+
+    # 5) Forecast next business day
+    last_window = scaled_close[-WINDOW:].reshape(1, WINDOW, 1)
+    pred_scaled = model.predict(last_window, verbose=0)[0][0]
+    pred_close  = scaler.inverse_transform([[pred_scaled]])[0][0]
+
+    last_date = df['Date'].iloc[-1]
+    next_bday = last_date + pd.tseries.offsets.BDay()
+
+    print(f"\nPredicted CLOSE for {ticker_symbol} on {next_bday.date()}: ${pred_close:.2f}\n")
+
+    # 6) Save to CSV
+    out = pd.DataFrame({
+        'Ticker': [ticker_symbol],
+        'Date':   [next_bday.date()],
+        'Predicted_Close': [pred_close]
     })
-    script_dir = os.path.dirname(os.path.abspath(__file__))  # directory for folder so that csv file is saved there
-    csv_file = os.path.join(script_dir, f"next_day_prediction_{ticker_symbol}.csv")
-    results_df.to_csv(csv_file, index=False)
-    print(f"Prediction saved to {csv_file}")
+    path = os.path.join(os.path.dirname(__file__),
+                        f"next_day_LSTM_{ticker_symbol}.csv")
+    out.to_csv(path, index=False)
+    print(f"Saved → {path}")
 
 if __name__ == "__main__":
     main()
