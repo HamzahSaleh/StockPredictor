@@ -6,14 +6,6 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 
-import firebase_admin
-from firebase_admin import credentials, storage
-
-# -- Database -- #
-cred = credentials.Certificate("C:\Users\uzifl\Downloads\stockpredictor-b0230-firebase-adminsdk-fbsvc-90457989fc.json")
-firebase_admin.initialize_app(cred, {"storageBucket": "stockpredictor-b0230"})
-bucket = storage.bucket()
-
 # ------------ helper: build sliding-window sequences -------------
 def make_sequences(data, win=60):
     """
@@ -27,12 +19,6 @@ def make_sequences(data, win=60):
         y.append(data[i+win, 0])            # 0 = Close column after scaling
     return np.array(X), np.array(y)
 
-
-# ----- helper : send to firebase ---- #
-def upload_to_firebase(local_file_path, remote_file_name):
-    blob = bucket.blob(f"csv-files/{remote_file_name}")
-    blob.upload_from_filename(local_file_path)
-    print(f"Uploaded {remote_file_name} to Firebase Storage.")
 # ----------------------------- main ------------------------------
 def main():
     # ---- 1. CLI args or defaults ---- 
@@ -104,10 +90,6 @@ def main():
                             f"next_day_LSTM_{ticker_symbol}.csv")
     out_df.to_csv(csv_path, index=False)
     print(f"Prediction saved to {csv_path}")
-
-    # upload to firebase
-
-    upload_to_firebase(path, f"next_day_LSTM_{ticker_symbol}.csv")
 
 if __name__ == "__main__":
     main()
