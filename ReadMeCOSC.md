@@ -5,6 +5,9 @@ run the backend with "uvicorn main:app --reload"
 
 Frontend: 
 After navigating out of the backend folder, intall front end dependencies with "npm install", then "npm run dev" to open the local host.
+to use node and npm in conda env after activation run this:
+conda install -c conda-forge nodejs
+then node -v and npm -v to check if it installed
 
 Project Structure:
 /YOUR_REPO
