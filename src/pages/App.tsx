@@ -113,9 +113,9 @@ const App: React.FC = () => {
                     value={stockTicker} onChange={(e) => setStockTicker(e.target.value)} />
                   <Box display="flex" gap={2}>
                     <TextField label="Start Date" type="date" value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)} fullWidth />
+                      onChange={(e) => setStartDate(e.target.value)} fullWidth  InputLabelProps={{ shrink: true }} />
                     <TextField label="End Date" type="date" value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)} fullWidth />
+                      onChange={(e) => setEndDate(e.target.value)} fullWidth   InputLabelProps={{ shrink: true }}/>
                   </Box>
                   <Button variant="contained" color="primary" onClick={startTraining} disabled={loading}>
                     {loading ? "Training in Progress..." : "Train Model"}
