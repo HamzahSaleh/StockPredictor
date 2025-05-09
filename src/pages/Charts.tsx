@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, Paper, AppBar, Toolbar, Button, IconButton, CircularProgress } from "@mui/material";
-import { Line } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2"; // Changed from Line to Bar
 import { Link } from "react-router-dom";
 import { Brightness4, Brightness7 } from "@mui/icons-material";
 import { createTheme, ThemeProvider, CssBaseline } from "@mui/material";
@@ -8,15 +8,14 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement, // Bar chart component
   Title,
   Tooltip,
   Legend,
 } from "chart.js";
 
 // Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 interface Prediction {
   Ticker: string;
@@ -25,11 +24,13 @@ interface Prediction {
   Predicted_Close: number;
 }
 
-// Dark mode functionality
+/*
+Charts should compare predicted and actual; however, 
+we are running into issues with displaying the actual data.
+As a placeholder, we have set the data parameters of those to null so that we can show something.
+*/
 const Charts: React.FC = () => {
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem("darkMode") === "true";
-  });
+  const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem("darkMode") === "true");
   const [loading, setLoading] = useState<boolean>(true);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -37,11 +38,10 @@ const Charts: React.FC = () => {
   useEffect(() => {
     const fetchPredictions = async () => {
       try {
-        // Get the ticker from localStorage
         const savedData = localStorage.getItem("savedPredictions");
         if (savedData) {
           const predictions = JSON.parse(savedData);
-          if (predictions && predictions.length > 0) {
+          if (predictions.length > 0) {
             setPredictions(predictions);
           }
         }
@@ -71,52 +71,44 @@ const Charts: React.FC = () => {
     typography: { fontFamily: "'Roboto', 'Arial', sans-serif" },
   });
 
-  const data = {
+  const openChartData = {
     labels: predictions.map((entry) => entry.Date),
     datasets: [
       {
-        label: "Predicted Open",
+        label: "Predicted Open (For Predicted Day)",
         data: predictions.map((entry) => entry.Predicted_Open),
+        backgroundColor: "rgba(75, 192, 192, 0.5)",
         borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.2)",
-        tension: 0.1,
+        borderWidth: 1,
       },
       {
-        label: "Predicted Close",
-        data: predictions.map((entry) => entry.Predicted_Close),
-        borderColor: "rgb(255, 99, 132)",
-        backgroundColor: "rgba(255, 99, 132, 0.2)",
-        tension: 0.1,
+        label: "Actual Open (Previous Day)",
+        data: [null, null], //null values due to errors
+        backgroundColor: "rgba(255, 165, 0, 0.5)",
+        borderColor: "rgb(255, 165, 0)",
+        borderWidth: 1,
       },
     ],
   };
 
-  const options = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: "top" as const,
+  const closeChartData = {
+    labels: predictions.map((entry) => entry.Date),
+    datasets: [
+      {
+        label: "Predicted Close (For Predicted Day)",
+        data: predictions.map((entry) => entry.Predicted_Close),
+        backgroundColor: "rgba(255, 99, 132, 0.5)",
+        borderColor: "rgb(255, 99, 132)",
+        borderWidth: 1,
       },
-      title: {
-        display: true,
-        text: "Stock Price Predictions",
+      {
+        label: "Actual Close (Previous Day)",
+        data: [null, null], //null values due to errors
+        backgroundColor: "rgba(54, 162, 235, 0.5)",
+        borderColor: "rgb(54, 162, 235)",
+        borderWidth: 1,
       },
-    },
-    scales: {
-      y: {
-        beginAtZero: false,
-        title: {
-          display: true,
-          text: 'Price ($)',
-        },
-      },
-      x: {
-        title: {
-          display: true,
-          text: 'Date',
-        },
-      },
-    },
+    ],
   };
 
   return (
@@ -132,7 +124,6 @@ const Charts: React.FC = () => {
             <Button color="inherit" component={Link} to="/charts">Charts</Button>
             <Button color="inherit" component={Link} to="/predictions">Predictions</Button>
           </Box>
-
           <IconButton onClick={toggleDarkMode} color="inherit">
             {darkMode ? <Brightness7 /> : <Brightness4 />}
           </IconButton>
@@ -146,11 +137,11 @@ const Charts: React.FC = () => {
         </Typography>
 
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
             <CircularProgress />
           </Box>
         ) : error ? (
-          <Paper sx={{ padding: 3, marginTop: 2, bgcolor: 'error.light' }}>
+          <Paper sx={{ padding: 3, marginTop: 2, bgcolor: "error.light" }}>
             <Typography color="error">{error}</Typography>
           </Paper>
         ) : predictions.length === 0 ? (
@@ -161,14 +152,16 @@ const Charts: React.FC = () => {
           </Paper>
         ) : (
           <>
+            {/* Predicted Open Prices Bar Chart */}
             <Paper sx={{ padding: 3, marginTop: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Stock Price Predictions
-              </Typography>
-              <Typography variant="body1" gutterBottom>
-                This chart shows the predicted open and close prices for the selected stock.
-              </Typography>
-              <Line data={data} options={options} />
+              <Typography variant="h6" gutterBottom>Open Prices Comparison</Typography>
+              <Bar data={openChartData} />
+            </Paper>
+
+            {/* Predicted Close Prices Bar Chart */}
+            <Paper sx={{ padding: 3, marginTop: 2 }}>
+              <Typography variant="h6" gutterBottom>Close Prices Comparison</Typography>
+              <Bar data={closeChartData} />
             </Paper>
           </>
         )}
