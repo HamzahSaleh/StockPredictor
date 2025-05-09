@@ -1,3 +1,5 @@
+
+
 Backend: Fast Api setup
 After cloning repo, (optional) setup anaconda environment, cd into the backend folder, install dependencies with "pip install -r requirements.txt"
     - only necessary ones are:
@@ -11,6 +13,8 @@ then node -v and npm -v to check if it installed
 
 run this for the other dependencies:
 "npm install react-router-dom @mui/material @mui/icons-material @emotion/react @emotion/styled chart.js react-chartjs-2"
+
+initial files: ignore this folder this was for initial testing and prototyping gui
 
 Project Structure:
 /YOUR_REPO
