@@ -1,3 +1,5 @@
+IGNORE THIS FOLDER/README
+
 # StockPredictor
 # StockPredictor
 Need to use python3, preferably conda enviroment and download all required libraries by typing pip install (library) in terminal.
