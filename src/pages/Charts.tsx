@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Box, Typography, Paper, AppBar, Toolbar, Button, IconButton } from "@mui/material";
+import React, { useState, useEffect } from "react";
+import { Box, Typography, Paper, AppBar, Toolbar, Button, IconButton, CircularProgress } from "@mui/material";
 import { Line } from "react-chartjs-2";
 import { Link } from "react-router-dom";
 import { Brightness4, Brightness7 } from "@mui/icons-material";
@@ -18,11 +18,42 @@ import {
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
+interface Prediction {
+  Ticker: string;
+  Date: string;
+  Predicted_Open: number;
+  Predicted_Close: number;
+}
+
 // Dark mode functionality
 const Charts: React.FC = () => {
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     return localStorage.getItem("darkMode") === "true";
   });
+  const [loading, setLoading] = useState<boolean>(true);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPredictions = async () => {
+      try {
+        // Get the ticker from localStorage
+        const savedData = localStorage.getItem("savedPredictions");
+        if (savedData) {
+          const predictions = JSON.parse(savedData);
+          if (predictions && predictions.length > 0) {
+            setPredictions(predictions);
+          }
+        }
+      } catch (err) {
+        setError("Error loading predictions");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPredictions();
+  }, []);
 
   const toggleDarkMode = () => {
     setDarkMode((prev) => {
@@ -40,28 +71,22 @@ const Charts: React.FC = () => {
     typography: { fontFamily: "'Roboto', 'Arial', sans-serif" },
   });
 
-  // Example stock data for presentation purposes
-  const stockData = [
-    { date: "2025-03-27", actual: 215.50, predicted: 216.00 },
-    { date: "2025-03-28", actual: 218.90, predicted: 219.40 },
-    { date: "2025-03-29", actual: 217.80, predicted: 218.00 },
-    { date: "2025-03-30", actual: 220.10, predicted: 220.30 },
-  ];
-
   const data = {
-    labels: stockData.map((entry) => entry.date),
+    labels: predictions.map((entry) => entry.Date),
     datasets: [
       {
-        label: "Actual Prices",
-        data: stockData.map((entry) => entry.actual),
-        borderColor: "blue",
-        backgroundColor: "rgba(0, 0, 255, 0.2)",
+        label: "Predicted Open",
+        data: predictions.map((entry) => entry.Predicted_Open),
+        borderColor: "rgb(75, 192, 192)",
+        backgroundColor: "rgba(75, 192, 192, 0.2)",
+        tension: 0.1,
       },
       {
-        label: "Predicted Prices",
-        data: stockData.map((entry) => entry.predicted),
-        borderColor: "orange",
-        backgroundColor: "rgba(255, 165, 0, 0.2)",
+        label: "Predicted Close",
+        data: predictions.map((entry) => entry.Predicted_Close),
+        borderColor: "rgb(255, 99, 132)",
+        backgroundColor: "rgba(255, 99, 132, 0.2)",
+        tension: 0.1,
       },
     ],
   };
@@ -70,11 +95,26 @@ const Charts: React.FC = () => {
     responsive: true,
     plugins: {
       legend: {
-        position: "top" as "top",
+        position: "top" as const,
       },
       title: {
         display: true,
-        text: "Stock Price Predictions vs. Actual Data",
+        text: "Stock Price Predictions",
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: false,
+        title: {
+          display: true,
+          text: 'Price ($)',
+        },
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Date',
+        },
       },
     },
   };
@@ -86,7 +126,6 @@ const Charts: React.FC = () => {
       {/* Navigation Bar */}
       <AppBar position="static">
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-          {/* Centered Navigation Links */}
           <Box sx={{ display: "flex", gap: 4 }}>
             <Button color="inherit" component={Link} to="/">Home</Button>
             <Button color="inherit" component={Link} to="/tutorial">Tutorial</Button>
@@ -94,7 +133,6 @@ const Charts: React.FC = () => {
             <Button color="inherit" component={Link} to="/predictions">Predictions</Button>
           </Box>
 
-          {/* Dark Mode Toggle at Far Right */}
           <IconButton onClick={toggleDarkMode} color="inherit">
             {darkMode ? <Brightness7 /> : <Brightness4 />}
           </IconButton>
@@ -103,15 +141,37 @@ const Charts: React.FC = () => {
 
       {/* Charts Page Content */}
       <Box sx={{ textAlign: "center", padding: 4 }}>
-        <Typography variant="h4" color="primary">
+        <Typography variant="h4" color="primary" gutterBottom>
           Stock Prediction Charts
         </Typography>
-        <Paper sx={{ padding: 3, marginTop: 2 }}>
-          <Typography variant="body1">
-            This chart compares actual stock prices with predicted values to analyze the accuracy of forecasts.
-          </Typography>
-          <Line data={data} options={options} />
-        </Paper>
+
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Paper sx={{ padding: 3, marginTop: 2, bgcolor: 'error.light' }}>
+            <Typography color="error">{error}</Typography>
+          </Paper>
+        ) : predictions.length === 0 ? (
+          <Paper sx={{ padding: 3, marginTop: 2 }}>
+            <Typography variant="h6" color="secondary">
+              No prediction data available. Please make a prediction first.
+            </Typography>
+          </Paper>
+        ) : (
+          <>
+            <Paper sx={{ padding: 3, marginTop: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Stock Price Predictions
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                This chart shows the predicted open and close prices for the selected stock.
+              </Typography>
+              <Line data={data} options={options} />
+            </Paper>
+          </>
+        )}
       </Box>
     </ThemeProvider>
   );
